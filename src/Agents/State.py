@@ -5,5 +5,5 @@ class State(TypedDict):
     planned_tasks: list[str]
     completed_tasks: list[str]
     pending_tasks: list[str]
-    
+    executor_output: list[str]
     

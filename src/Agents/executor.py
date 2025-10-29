@@ -1,6 +1,6 @@
 import subprocess
 import os
-
+import inspect
 import webbrowser
 from datetime import datetime
 try:
@@ -11,6 +11,46 @@ except ImportError:
 class Executor:
     def __init__(self, allowed_apps=None):
         self.allowed_apps = allowed_apps or []
+
+
+
+    def what_execute(self, state):
+        planner_obj = state.get("planned_tasks")
+        steps = planner_obj.Steps if planner_obj else []
+        dispatch_results = self.dispatch_actions([step.dict() for step in steps])
+        state["executor_output"] = dispatch_results
+        return state
+
+
+    def dispatch_actions(self, steps):
+        results=[]
+        action_handlers = {
+        "open_app": self.open_app,
+        "open_website": self.open_website,
+        "take_screenshot": self.take_screenshot,
+        # Add more mappings as you add features
+    }
+        for step in steps:
+            action_type = step.get("action")
+            handler = action_handlers.get(action_type)
+            if handler:
+                sig = inspect.signature(handler)
+                params = {k: v for k, v in step.items() if k != "action" and k in sig.parameters and v is not None}
+                result = handler(**params)
+                results.append({
+                    "action": action_type,
+                    "action":params,
+                    "result": result}
+                )
+
+            else:
+                results.append({
+                "action": action_type,
+                "params": {},
+                "result": f"No handler for action: {action_type}"
+            })
+        return results
+
 
     def open_app(self, app_name: str) -> str:
         if not app_name or not isinstance(app_name, str):
@@ -48,5 +88,6 @@ class Executor:
             return f"Failed to take screenshot: {e}"
         
 
-tr=Executor(allowed_apps=["CHROME","NOTEPAD"])
-tr.open_app("CHROME")
+# tr=Executor(allowed_apps=["CHROME","NOTEPAD"])
+# tr.open_app("CHROME")
+

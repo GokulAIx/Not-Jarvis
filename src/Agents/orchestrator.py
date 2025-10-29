@@ -1,15 +1,13 @@
 from langgraph.graph import StateGraph , START , END
-from Agents.task_planner import TaskPlanner
-from Agents.executor import Executor
-from Agents.State import State
-from tools.url import get_url
+from src.Agents.task_planner import TaskPlanner
+from src.Agents.executor import Executor
+from src.Agents.State import State
 
-Tools=[get_url]
 
-graph=StateGraph()
+graph=StateGraph(State)
 
 graph.add_node("TaskPlanner",TaskPlanner)
-graph.add_node("Executor",Executor)
+graph.add_node("Executor", Executor().what_execute)
 
 graph.add_edge(START,"TaskPlanner")
 graph.add_edge("TaskPlanner","Executor")
