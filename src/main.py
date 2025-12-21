@@ -4,20 +4,27 @@ from src.Agents.orchestrator import workflow
 
 
 wakeup="arise"
-user_goal=input("TYPE SOMETHING ")
-if user_goal.lower().startswith(wakeup):
-     user_goal=user_goal[len(wakeup):].strip()
-else:
-    print(f"Please start your goal with the wakeup word ")
-    exit(1)
+while True:
+    user_goal=input("Enter your command: ")
+    if user_goal.lower().startswith(wakeup):
+        user_goal=user_goal[len(wakeup):].strip()
+    else:
+        print(f"Please start your goal with the wakeup word ")
+        exit(1)
 
 
-print("STARTING")
-result = workflow.invoke({"user_goal": user_goal})
+    print("STARTING")
+    result = workflow.invoke({"user_goal": user_goal})
 
-print("\n=== Planner Output ===")
-for step in result["planned_tasks"].Steps:
-    print(f"→ {step.action}: {step.app_name or step.url}")
-print("\n=== Executor Output ===")
-for line in result.get("executor_output", []):
-    print(line)
+    print("\n=== Planner Output ===")
+    for step in result["planned_tasks"].Steps:
+        print(f"→ {step.action}: {step.app_name or step.url}")
+    print("\n=== Executor Output ===")
+    for line in result.get("executor_output", []):
+        print(line)
+
+
+    print("#############################")
+    print("#############################")
+
+    print(result)

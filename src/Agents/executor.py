@@ -15,8 +15,7 @@ class Executor:
 
 
     def what_execute(self, state):
-        planner_obj = state.get("planned_tasks")
-        steps = planner_obj.Steps if planner_obj else []
+        steps = state.get("pending_tasks", [])
         dispatch_results = self.dispatch_actions([step.dict() for step in steps])
         state["executor_output"] = dispatch_results
         return state
