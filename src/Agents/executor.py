@@ -44,7 +44,7 @@ class Executor:
         }
     def dispatch_actions(self, steps):
         # Import tools locally to avoid circular imports
-        from ..tools.tools import search_tool, get_url
+        from ..tools.tools import search_tool
         
         results = []
         action_handlers = {
@@ -64,12 +64,6 @@ class Executor:
                 # Filter out 'action' key and only pass what the handler accepts
                 params = {k: v for k, v in step.items() if k in sig.parameters and v is not None}
                 
-                # Debug: Log URL extraction
-                if action_type == "open_website":
-                    print(f"🔍 Step dict keys: {step.keys()}")
-                    print(f"🔍 Step URL value: {step.get('url')}")
-                    print(f"🔍 Filtered params: {params}")
-                
                 try:
                     result = handler(**params)
                     results.append({"action": action_type, "result": result})
@@ -81,19 +75,14 @@ class Executor:
         return results
 
     def open_website(self, url: str) -> str:
-            print(f"🌐 open_website called with URL: '{url}' (type: {type(url)})")
-            
             if not url: return "No URL provided."
             
             # Ensure URL has protocol
             if not url.startswith(('http://', 'https://')):
                 url = 'https://' + url
-                print(f"🔧 Added protocol: {url}")
             
             try:
-                # Force Windows to handle the URL through the shell
-                # This is often more reliable than webbrowser.open in async environments
-                print(f'🚀 Executing: start "" "{url}"')
+                # Use Windows shell to open URL in default browser
                 os.system(f'start "" "{url}"')
                 return f"Opening website: {url}"
             except Exception as e:

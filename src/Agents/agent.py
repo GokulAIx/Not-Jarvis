@@ -8,7 +8,7 @@ import os
 load_dotenv()
 api = os.getenv("GOOGLE_API_KEY")
 
-from ..tools.tools import get_url, search_tool
+from ..tools.tools import search_tool
 from src.schemas.all_schemas import Planner, ReceptionResponse
 from .prompts import reception_prompt
 from langgraph.graph.message import add_messages
@@ -56,8 +56,11 @@ def TaskPlanner(state: State):
     
     # FIRST: Check for conversational queries (before max iteration check)
     user_goal_lower = state['user_goal'].lower().strip()
-    conversational_keywords = ['hi', 'hello', 'hey', 'how are you', 'who are you', 
-                               'what can you do', 'what are you', 'help me understand']
+    # ONLY greetings and identity questions - NOT informational queries
+    conversational_keywords = [
+        'hi', 'hello', 'hey', 'how are you', 'who are you', 
+        'what can you do', 'what are you'
+    ]
     
     is_conversational = any(keyword in user_goal_lower for keyword in conversational_keywords)
     
@@ -90,6 +93,18 @@ def TaskPlanner(state: State):
     
     Current User Goal: {state['user_goal']}
     
+    **CRITICAL INSTRUCTION - REPEATED REQUESTS**:
+    - If user asks the SAME TASK again (even if it's in conversation history), DO IT AGAIN
+    - NEVER say "I already did this" or "I have already found/opened..."
+    - ALWAYS execute the task fresh as if it's the first time
+    - Example: If "Find MIT website" was done before, do it again when asked again
+    - The conversation history is for context, NOT to skip repeating tasks
+    
+    **ANSWERING REPEATED QUESTIONS**:
+    - If user asks the same QUESTION again, answer it fully again
+    - Do NOT say "I already answered this" - just provide the answer
+    - Users may want to hear it again or may have forgotten
+    
     What we've accomplished so far (actions/tools executed):
     {memory if memory else "Nothing yet - starting fresh"}
     
@@ -117,15 +132,23 @@ def TaskPlanner(state: State):
     ### DECISION RULES:
     
     ⚠️ RULE 0 - CHECK THIS FIRST:
-    **CONVERSATIONAL QUERIES** (greetings, questions about yourself, how you're doing, what you can do):
-       - Keywords: "hi", "hello", "who are you", "how are you", "what can you do", "how do you work"
-       - These require NO search, NO website opening, NO actions - just answer directly!
+    **CONVERSATIONAL QUERIES** (greetings, questions about yourself):
+       - Keywords: "hi", "hello", "how are you", "who are you", "what can you do"
+       - These require NO search, NO website opening - just answer directly!
        - Action: route_to='terminal', Steps=[], fill direct_response field
-       - Example: User says "how are you" → direct_response: "I'm doing well! I'm Jarvis, ready to assist you with searches, opening websites, and more. What can I help you with?"
+       - Example: "hi" → direct_response: "Hello! I'm Jarvis..."
        
-       ❌ DO NOT plan any Steps for conversational queries
-       ❌ DO NOT search for "how are you" on Google
-       ❌ DO NOT try to execute actions
+    **INFORMATIONAL QUERIES** ("what is", "explain", etc.):
+       - YOU decide if search is needed:
+         • General knowledge you know → Answer directly (route to terminal)
+         • Real-time/specific info → Search first
+       - Examples:
+         • "What is quantum computing" → You know this, answer directly
+         • "What is the weather in Tokyo" → Search needed (real-time)
+         • "What is the best restaurant in NYC" → Search needed (current info)
+       
+       ❌ DO NOT plan any Steps for greetings/identity queries
+       ❌ DO use search when you need current/specific information
     
     RULE 1: If memory is EMPTY AND user needs a SYSTEM ACTION → Plan: 'search' action with user's query
     
@@ -133,19 +156,20 @@ def TaskPlanner(state: State):
        ⚠️ CRITICAL: NEVER search again! You already have the data you need.
        
        Your job now:
-       A. Extract the top entity name from the search results
-          - For restaurants: Look for 'title' field in JSON (e.g., "Shinjuku Sushi Hatsume")
-          - For universities: Extract name from text (e.g., "MIT", "Stanford University")
+       A. **FIND THE [EXTRACTED_URL] TAG** in the search results
+          - The search tool automatically extracts the top result's URL
+          - Look for the line: [EXTRACTED_URL]: https://...
+          - This is the ACTUAL website URL from Google's top result
        
-       B. Find or construct a URL:
-          - Universities: [short_name].edu (MIT → "https://mit.edu")
-          - Companies: [name].com (Google → "https://google.com")
-          - Restaurants: Use 'place_id_search' field from JSON OR construct [name].com
+       B. Copy that exact URL into the 'url' field:
+          - Example: If you see [EXTRACTED_URL]: https://web.mit.edu
+          - Then plan: {{action: "open_website", url: "https://web.mit.edu"}}
        
-       C. Plan: 'open_website' with the URL you found/constructed
+       C. **CRITICAL**: Copy the URL EXACTLY as shown - do NOT modify it!
        
-       ❌ DO NOT plan another 'search' action if you already have search results!
-       ❌ DO NOT search for "official website" - just construct the URL!
+       ❌ DO NOT construct URLs like "mit.edu"
+       ❌ DO NOT modify the extracted URL
+       ❌ DO NOT plan another 'search' action!
     
     RULE 3: If loop_count >= 3 AND no 'open_website' in memory yet:
        → You MUST construct a URL from existing data and open it NOW
@@ -154,15 +178,26 @@ def TaskPlanner(state: State):
     RULE 4: If goal is accomplished (website opened) → Route to 'terminal'
     
     ### ALLOWED ACTIONS:
-    - search (requires: query) - Use this to find info
-    - open_website (requires: url - can be extracted OR constructed)
+    - search (requires: query) - Searches web and auto-extracts top URL
+    - open_website (requires: url - Copy from [EXTRACTED_URL] tag)
     - open_app (requires: app_name)
     - take_screenshot
     
-    ### URL CONSTRUCTION RULES:
-    For universities: Extract short name (MIT, Stanford, Harvard) → [name].edu
-    For companies: Extract name → [name].com
-    For restaurants: Use place_id_search from Google results
+    ### URL EXTRACTION (AUTOMATED):
+    **The search tool does the work for you!**
+    
+    When you run search, the result includes:
+    ```
+    [search results text...]
+    
+    [EXTRACTED_URL]: https://actual-website.com
+    ```
+    
+    Your job: Copy that URL exactly into open_website action.
+    
+    ❌ DO NOT construct URLs - use [EXTRACTED_URL]
+    ❌ DO NOT modify the extracted URL
+    ❌ DO NOT search for "official website" - first search has the URL
     
     ALWAYS prefer opening SOMETHING over endless searching!
     
@@ -214,10 +249,7 @@ def TaskPlanner(state: State):
     next_step = response.Steps[0]
     print(f"Next action: {next_step.action}")
     
-    # Debug: Log URL if present
     step_dict = next_step.dict()
-    if step_dict.get('url'):
-        print(f"🔗 URL in pending_task: {step_dict.get('url')}")
     
     return {
         "pending_task": step_dict,
