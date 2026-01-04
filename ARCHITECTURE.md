@@ -1,151 +1,91 @@
-# Not-Jarvis: Production AI Agent Architecture
+# Not-Jarvis: Production AI Agent Architecture (v2.0)
 
-**Goal**: Achieve $100k remote US-based AI Engineering role by end of 2026
-
-**Assessment**: ✅ **YES - This project is blog-worthy** with strategic improvements
+**Last Updated**: January 4, 2026  
+**Status**: Production-Ready Multi-Turn Conversational Agent with Persistent Memory
 
 ---
 
 ## Executive Summary
 
-**Not-Jarvis** is a production-grade conversational AI assistant that demonstrates understanding of:
-- Modern AI orchestration (LangGraph)
-- Production patterns (async, streaming, state persistence)
-- System design (multi-node workflows, conditional routing)
-- Real-time UX (Server-Sent Events)
+**Not-Jarvis (Jarvis)** is a production-grade multi-turn conversational AI assistant that demonstrates mastery of:
+- **Iterative Single-Step Planning** (LangGraph agentic workflows)
+- **Persistent Conversation Memory** (PostgreSQL checkpointer with Supabase)
+- **Real-Time Streaming** (Server-Sent Events for live feedback)
+- **Multi-Turn Context Awareness** (Remembers conversation history across requests)
+- **System Integration** (Web search, browser control, app launching)
 
-### What Makes This Portfolio-Worthy
+### Architecture Paradigm: Iterative Single-Step Planning
 
-For **$100k+ remote US roles**, employers seek:
-1. ✅ **Production patterns** - You have: async, streaming, state persistence
-2. ✅ **Modern AI stack** - LangGraph, structured outputs, tool calling
-3. ✅ **System design** - Multi-node workflows, routing logic
-4. ⚠️ **Scale/complexity** - Current features are basic (extend needed)
-5. ⚠️ **Polish** - Add error handling, observability, tests
+**Key Innovation**: Unlike traditional multi-step planners that generate full task lists upfront, this system:
+1. Plans ONE action at a time
+2. Executes that action
+3. Analyzes results and conversation history
+4. Plans next action based on new information
+5. Repeats until goal accomplished
 
----
-
-## System Overview
-
-### Core Capabilities
-- Accepts natural language commands via REST API
-- Plans tasks using LLM reasoning (Gemini 2.5 Flash)
-- Executes system actions (browsers, apps, screenshots)
-- Streams responses in real-time
-- Maintains conversation context across sessions
-- Persists state to PostgreSQL
-
-### Technology Stack
-```
-Frontend:     Python CLI client (SSE consumer)
-API Layer:    FastAPI (async)
-Orchestration: LangGraph StateGraph
-LLM:          Google Gemini 2.5 Flash
-Tools:        Custom action executors
-Database:     Supabase PostgreSQL
-Persistence:  LangGraph AsyncPostgresSaver
-```
+**Benefits**:
+- ✅ Handles ambiguous queries (adapts based on search results)
+- ✅ Recovers from failures (re-plans instead of following broken plan)
+- ✅ Multi-turn awareness ("open their website" works after "find restaurant")
+- ✅ Cost-efficient (only 1 search per query, constructs URLs from results)
 
 ---
 
-## Complete Architecture Breakdown
-
-### Layer 1: API Layer (Entry Point)
-**File**: `main.py`
+## Technology Stack
 
 ```
-Client Request → FastAPI → Agent Graph → Streaming Response
+Client:        Python CLI (requests + SSE streaming)
+API:           FastAPI (async, streaming responses)
+Orchestration: LangGraph StateGraph (iterative loop)
+LLM:           Google Gemini 2.5 Flash (structured outputs)
+Tools:         SerpAPI (web search), OS commands (browser/app control)
+Memory:        Supabase PostgreSQL (AsyncPostgresSaver)
+Identity:      "Jarvis" - AI assistant by Gokul Sree Chandra
 ```
-
-#### Key Components
-
-**FastAPI Server with Async Support**
-```python
-@app.post("/not-jarvis/stream")
-async def stream_agent(request: ChatRequest):
-    async def event_generator():
-        async for event in app_instance.astream(...):
-            yield f"data: {output}\n\n"
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
-```
-
-**PostgreSQL Connection Pooling**
-```python
-connection_pool = AsyncConnectionPool(
-    conninfo=DB_URI,
-    max_size=10,
-    open=False,
-    kwargs={
-        "autocommit": True,
-        "row_factory": dict_row,
-        "prepare_threshold": None
-    }
-)
-```
-
-**Request Flow**
-```
-POST /not-jarvis/stream
-├─ Input: { user_goal: str, thread_id: str }
-├─ Retrieves checkpointer from app.state
-├─ Streams workflow events via astream()
-└─ Output: SSE stream with reception_output
-```
-
-#### Why This Matters for Hiring
-- ✅ Demonstrates async I/O (critical for production)
-- ✅ Shows connection management understanding
-- ✅ Real-time UX without polling
-- ✅ Proper resource cleanup (startup/shutdown events)
 
 ---
 
-### Layer 2: Workflow Orchestration (Brain)
-**File**: `src/Agents/agent.py`
+## System Architecture Overview
 
-#### LangGraph StateGraph Architecture
+### Data Flow
 
 ```
-┌─────────────┐
-│   START     │
-└──────┬──────┘
-       ↓
-┌─────────────────┐
-│  TaskPlanner    │ ← LLM Plans + Routes Decision
-└──────┬──────────┘
-       ↓
-    (Router)
-    /      \
-   /        \
-┌──────┐  ┌──────────┐
-│terminal│ │ Executor │ ← System Actions
-└───┬───┘ └────┬─────┘
-    │          │
-    └────┬─────┘
-         ↓
-    ┌──────────┐
-    │Reception │ ← Format Response
-    └────┬─────┘
-         ↓
-       END
+┌─────────────────────────────────────────────────────────────┐
+│                      CLIENT (client.py)                     │
+│  - Hardcoded Thread ID: GOKUL_SREE_CHANDRA                 │
+│  - Maintains session across all requests                    │
+│  - SSE streaming consumption                                │
+└────────────────┬────────────────────────────────────────────┘
+                 │ POST /not-jarvis/stream
+                 │ {user_goal, thread_id}
+                 ↓
+┌─────────────────────────────────────────────────────────────┐
+│                   FASTAPI SERVER (main.py)                  │
+│  - Async connection pool (max 10)                           │
+│  - Loads checkpointer state from Supabase                   │
+│  - Resets loop_count/executor_memory per request            │
+│  - Preserves messages (conversation history)                │
+└────────────────┬────────────────────────────────────────────┘
+                 │ astream() with config
+                 ↓
+┌─────────────────────────────────────────────────────────────┐
+│              LANGGRAPH WORKFLOW (agent.py)                  │
+│                                                              │
+│     START → TaskPlanner → [routing] → END                   │
+│                  ↑            ↓                              │
+│                  └───Executor─┘                              │
+│                                                              │
+│  Loop Logic:                                                 │
+│  1. TaskPlanner reads conversation_history + executor_memory│
+│  2. Decides: conversational query? → direct_response + END  │
+│  3. Or plans single action → Executor                        │
+│  4. Executor executes → back to TaskPlanner                 │
+│  5. Repeats until is_complete=True                          │
+│  6. Reception formats final response (if no direct_response)│
+└─────────────────────────────────────────────────────────────┘
 ```
 
-#### State Schema
-
-```python
-class State(TypedDict):
-    user_goal: str                    # User input
-    planned_tasks: Planner            # LLM-generated plan
-    completed_tasks: list[str]        # Execution history
-    pending_tasks: list[str]          # Execution queue
-    executor_output: list[str]        # Action results
-    reception_output: str             # User-facing response
-    route_to: str                     # Routing flag
-    internal_answer: str              # Intermediate storage
-    messages: Annotated[list, ...]    # Conversation history
-```
-
-**Design Pattern**: Shared state flows through nodes, each node updates specific fields.
+### State Schema (Complete)
 
 ---
 

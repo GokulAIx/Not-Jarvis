@@ -15,58 +15,85 @@ class Executor:
         self.allowed_apps = allowed_apps or []
 
     def what_execute(self, state):
-        steps = state.get("pending_tasks", [])
-        print(f"DEBUG EXECUTOR: Received {len(steps)} tasks")
+        task = state.get("pending_task")
         
-        # 1. Safely convert Pydantic objects to dicts
-        # This is the most common reason for 'Page not opening'
-        clean_steps = []
-        for step in steps:
-            if hasattr(step, "dict"):
-                clean_steps.append(step.dict())
-            else:
-                clean_steps.append(step)
-
-        # 2. Run the actions
-        dispatch_results = self.dispatch_actions(clean_steps)
+        if not task:
+            print("⚠️ Executor called with no pending task")
+            return {"executor_memory": state.get("executor_memory", [])}
         
-        # 3. Handshake Delay: Keep thread alive for the OS to catch the browser request
-        if any(s.get("action") in ["open_app", "open_website"] for s in clean_steps):
-            print("DEBUG: Waiting for OS process handoff...")
-            time.sleep(2.5) 
-
-        # 4. Clear tasks so they don't repeat
+        print(f"\n--- Executor: Running action ---")
+        print(f"Action: {task.get('action')}")
+        
+        # Run the single task
+        result = self.dispatch_actions([task])
+        
+        # CRITICAL: Keep thread alive for OS process handoff
+        action_type = task.get('action')
+        if action_type in ['open_website', 'open_app', 'open']:
+            print("⏳ Waiting for process handoff...")
+            time.sleep(3)  # Increased from 2.5 to 3 seconds
+        
+        # Append to memory
+        existing_memory = state.get("executor_memory", [])
+        
+        print(f"Result: {result[0].get('result', 'No result')[:100]}...")
+        
         return {
-            "executor_output": dispatch_results,
-            "pending_tasks": [] 
+            "executor_memory": existing_memory + result,
+            "pending_task": None  # Clear the task
         }
-
     def dispatch_actions(self, steps):
+        # Import tools locally to avoid circular imports
+        from ..tools.tools import search_tool, get_url
+        
         results = []
         action_handlers = {
             "open_app": self.open_app,
             "open_website": self.open_website,
-            "open": self.open_website,  # Alias for LLM flexibility
+            "open": self.open_website,
             "take_screenshot": self.take_screenshot,
+            "search": lambda query: search_tool.run(query)
         }
+        
         for step in steps:
             action_type = step.get("action")
             handler = action_handlers.get(action_type)
+            
             if handler:
                 sig = inspect.signature(handler)
                 # Filter out 'action' key and only pass what the handler accepts
                 params = {k: v for k, v in step.items() if k in sig.parameters and v is not None}
-                result = handler(**params)
-                results.append({"action": action_type, "result": result})
+                
+                # Debug: Log URL extraction
+                if action_type == "open_website":
+                    print(f"🔍 Step dict keys: {step.keys()}")
+                    print(f"🔍 Step URL value: {step.get('url')}")
+                    print(f"🔍 Filtered params: {params}")
+                
+                try:
+                    result = handler(**params)
+                    results.append({"action": action_type, "result": result})
+                except Exception as e:
+                    results.append({"action": action_type, "result": f"Error: {str(e)}"})
             else:
                 results.append({"action": action_type, "result": f"No handler found for {action_type}"})
+        
         return results
 
     def open_website(self, url: str) -> str:
+            print(f"🌐 open_website called with URL: '{url}' (type: {type(url)})")
+            
             if not url: return "No URL provided."
+            
+            # Ensure URL has protocol
+            if not url.startswith(('http://', 'https://')):
+                url = 'https://' + url
+                print(f"🔧 Added protocol: {url}")
+            
             try:
                 # Force Windows to handle the URL through the shell
                 # This is often more reliable than webbrowser.open in async environments
+                print(f'🚀 Executing: start "" "{url}"')
                 os.system(f'start "" "{url}"')
                 return f"Opening website: {url}"
             except Exception as e:

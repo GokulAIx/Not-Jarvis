@@ -1,11 +1,16 @@
 import requests
 import json
+import uuid
+
+# Hardcoded session ID for consistent testing
+SESSION_ID = "GOKUL_SREE_CHANDRA"
 
 def chat_with_jarvis(user_input):
     url = "http://localhost:8000/not-jarvis/stream"
+    # Use the same thread_id for the entire conversation
     payload = {
         "user_goal": user_input,
-        "thread_id": "gokul_dev_session_001"
+        "thread_id": SESSION_ID
     }
 
     try:
@@ -39,10 +44,16 @@ def chat_with_jarvis(user_input):
         print(f"\n[Client Error]: {e}")
 
 if __name__ == "__main__":
-    print("Not Jarvis Terminal Client (type 'exit' to stop)")
+    print("Not Jarvis Terminal Client (type 'exit' to stop, 'reset' for new session)")
+    print(f"Session ID: {SESSION_ID}\n")
+    
     while True:
         user_input = input("You: ")
         if user_input.lower() == 'exit':
             break
+        if user_input.lower() == 'reset':
+            SESSION_ID = f"session_{uuid.uuid4().hex[:8]}"
+            print(f"🔄 New session started: {SESSION_ID}\n")
+            continue
         print("--- Sending Request ---")
         chat_with_jarvis(user_input)

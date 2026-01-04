@@ -17,6 +17,9 @@ searching_tool = SerpAPIWrapper(serpapi_api_key=serpy)
 def get_url(site_name: str) -> str:
     """Find the official website URL for a given business/restaurant name using web search"""
     try:
+        if not site_name or site_name.strip() == "":
+            return "Error: No site name provided. Please provide a restaurant or business name."
+        
         # Search for the official website
         search_query = f"{site_name} official website"
         search_results = searching_tool.run(search_query)
@@ -26,12 +29,18 @@ def get_url(site_name: str) -> str:
         Search results for "{site_name}":
         {search_results}
         
-        Extract ONLY the official website URL (https://...). 
-        Return just the URL, nothing else.
-        If no clear official website found, return the most relevant URL.
+        Extract ONLY the official website URL (must start with http:// or https://). 
+        Return JUST the URL, nothing else.
+        
+        If no official website is found in the results, return exactly: "NO_URL_FOUND"
+        Do not return explanations, just the URL or NO_URL_FOUND.
         """
         
         response = model.invoke(prompt).content.strip()
+        
+        # Check if no URL was found
+        if "NO_URL_FOUND" in response or not response:
+            return f"Error: Could not find official website for {site_name}. Try a direct search instead."
         
         # Clean up the response (remove quotes, extra text, trailing punctuation)
         import re
@@ -42,10 +51,11 @@ def get_url(site_name: str) -> str:
             # Remove any trailing dots, ellipsis, or closing parens
             url = re.sub(r'[.)]+$', '', url)
             return f"URL: {url}"
-        return f"URL: {response}"
+        
+        return f"Error: Found text but no valid URL: {response[:100]}"
         
     except Exception as e:
-        return f"Failed to find URL: {e}"
+        return f"Error: Failed to find URL - {str(e)}"
 
 search_tool = Tool(
     name="serp_search",  # CHANGE: Removed space, used underscore

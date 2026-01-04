@@ -65,8 +65,28 @@ async def stream_agent(request: ChatRequest):
         app_instance = workflow.compile(checkpointer=checkpointer)
         config = {"configurable": {"thread_id": request.thread_id}}
         
+        # Debug: Check if we're loading an existing session
+        print(f"\n📨 Incoming request:")
+        print(f"   Thread ID: {request.thread_id}")
+        print(f"   User Goal: {request.user_goal}")
+        
+        # Try to load previous state
+        try:
+            existing_state = await checkpointer.aget(config)
+            if existing_state:
+                print(f"   ✅ Loaded existing session with {len(existing_state.get('values', {}).get('executor_memory', []))} memory entries")
+            else:
+                print(f"   🆕 New session starting")
+        except Exception as e:
+            print(f"   ⚠️ Could not check existing state: {e}")
+        
         async for event in app_instance.astream(
-            {"user_goal": request.user_goal}, 
+            {
+                "user_goal": request.user_goal,
+                "loop_count": 0,  # Reset loop counter for each new request
+                "executor_memory": [],  # Fresh action memory for new request
+                "is_complete": False
+            }, 
             config=config, 
             stream_mode="updates" 
         ):
