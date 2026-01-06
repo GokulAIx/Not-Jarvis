@@ -25,10 +25,26 @@ class Executor:
         print(f"Action: {task.get('action')}")
         
         # Run the single task
-        result = self.dispatch_actions([task])
+        # Prevent duplicate opens by checking last_opened_url in state
+        action_type = task.get('action')
+        result = None
+        last_opened = state.get('last_opened_url')
+        if action_type in ['open_website', 'open_app', 'open']:
+            # attempt to normalize URL if present
+            url_candidate = task.get('url') or task.get('website') or task.get('destination')
+            normalized = None
+            if url_candidate:
+                normalized = self._normalize_url(url_candidate)
+            # If URL matches last opened, skip executing
+            if normalized and last_opened and normalized == last_opened:
+                print(f"ℹ️ Skipping duplicate open for {normalized}")
+                result = [{"action": action_type, "result": f"Already opened: {normalized}"}]
+            else:
+                result = self.dispatch_actions([task])
+        else:
+            result = self.dispatch_actions([task])
         
         # CRITICAL: Keep thread alive for OS process handoff
-        action_type = task.get('action')
         if action_type in ['open_website', 'open_app', 'open']:
             print("⏳ Waiting for process handoff...")
             time.sleep(3)  # Increased from 2.5 to 3 seconds
@@ -40,19 +56,31 @@ class Executor:
         
         # Generate completion message for streaming
         completion_messages = {
-            "search": "✅ Search complete",
-            "open_website": "✅ Website opened",
-            "open_app": "✅ Application launched",
-            "take_screenshot": "✅ Screenshot saved"
+            "search": "✅ Search complete\n",
+            "open_website": "✅ Website opened\n",
+            "open_app": "✅ Application launched\n",
+            "take_screenshot": "✅ Screenshot saved\n"
         }
         
         completion_msg = completion_messages.get(action_type, "✅ Action complete")
         
-        return {
+        # Update last_opened_url when we actually opened a URL
+        updated_fields = {
             "executor_memory": existing_memory + result,
             "pending_task": None,  # Clear the task
             "reception_output": completion_msg  # ← Stream completion update
         }
+
+        if action_type in ['open_website', 'open_app', 'open']:
+            # If we executed an actual open, capture the URL from task
+            url_candidate = task.get('url') or task.get('website') or task.get('destination')
+            if url_candidate:
+                normalized = self._normalize_url(url_candidate)
+                # If we skipped due to duplicate, last_opened remains same; otherwise set to normalized
+                if not (result and isinstance(result, list) and result[0].get('result', '').startswith('Already opened')):
+                    updated_fields['last_opened_url'] = normalized
+
+        return updated_fields
     def dispatch_actions(self, steps):
         # Import tools locally to avoid circular imports
         from ..tools.tools import search_tool
@@ -87,17 +115,23 @@ class Executor:
 
     def open_website(self, url: str) -> str:
             if not url: return "No URL provided."
-            
-            # Ensure URL has protocol
-            if not url.startswith(('http://', 'https://')):
-                url = 'https://' + url
-            
+
+            # Normalize URL and return the normalized form on success
+            normalized = self._normalize_url(url)
             try:
                 # Use Windows shell to open URL in default browser
-                os.system(f'start "" "{url}"')
-                return f"Opening website: {url}"
+                os.system(f'start "" "{normalized}"')
+                return normalized
             except Exception as e:
                 return f"Failed to open website: {e}"
+
+    def _normalize_url(self, url: str) -> str:
+            if not url:
+                return url
+            url = url.strip()
+            if not url.startswith(('http://', 'https://')):
+                return 'https://' + url
+            return url
 
     def open_app(self, app_name: str) -> str:
         try:

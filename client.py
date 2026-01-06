@@ -34,12 +34,12 @@ def chat_with_jarvis(user_input):
                             data = json.loads(content)
                             if isinstance(data, list) and len(data) > 0:
                                 # Extract text if it's a list of blocks
-                                print(data[0].get('text', ''), end="", flush=True)
+                                print(data[0].get('text', ''))
                             else:
-                                print(data, end="", flush=True)
+                                print(data)
                         except json.JSONDecodeError:
-                            # If it's just raw text, print it directly
-                            print(content, end="", flush=True)
+                            # If it's just raw text, print it directly (respects \n in the string)
+                            print(content)
             print() # Final newline after response ends
     except Exception as e:
         print(f"\n[Client Error]: {e}")

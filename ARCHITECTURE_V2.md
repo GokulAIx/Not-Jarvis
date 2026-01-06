@@ -1,7 +1,7 @@
 # Not-Jarvis: Production AI Agent Architecture (v2.0)
 
-**Last Updated**: January 4, 2026  
-**Status**: Production-Ready with Python-Based URL Extraction
+**Last Updated**: January 6, 2026  
+**Status**: Production-Ready with Duplicate Prevention & Intelligent Follow-up Search
 
 ---
 
@@ -11,9 +11,11 @@
 - **Iterative Single-Step Planning** (LangGraph agentic workflows)
 - **Python+LLM Hybrid Architecture** (Deterministic data extraction + semantic decision making)
 - **Persistent Conversation Memory** (PostgreSQL checkpointer with Supabase)
-- **Real-Time Streaming** (Server-Sent Events for live feedback)
+- **Real-Time Streaming** (Server-Sent Events for progressive task updates)
+- **Intelligent Follow-up Search** (Detects aggregator sites, auto-searches for official sources)
+- **Duplicate Action Prevention** (URL normalization and state tracking)
 - **Multi-Turn Context Awareness** (Remembers conversation history across requests)
-- **System Integration** (Web search, browser control, app launching)
+- **System Integration** (Web search, browser control, app launching, screenshots)
 
 ### Architecture Paradigm: Iterative Single-Step Planning
 
@@ -127,6 +129,7 @@ class State(TypedDict):
     is_complete: bool                     # Explicit completion flag
     route_to: str                         # Routing decision: "executor" | "terminal"
     reception_output: str                 # Streaming updates to user
+    last_opened_url: str                  # Tracks last opened URL for duplicate prevention
     messages: Annotated[list, add_messages]  # Conversation history (persisted)
 ```
 
@@ -135,7 +138,8 @@ class State(TypedDict):
 2. **`messages`**: Persists full conversation across requests via checkpointer
 3. **`pending_task`**: Single dict (not list) - enforces one-action-at-a-time pattern
 4. **`loop_count`**: Reset to 0 per request to prevent cross-request pollution
-5. **`reception_output`**: Set by TaskPlanner for direct responses OR reception node for summaries
+5. **`reception_output`**: Set by TaskPlanner/Executor for streaming, Reception for final summary
+6. **`last_opened_url`**: Normalized URL to prevent duplicate opens (e.g., www.mit.edu = https://www.mit.edu)
 
 ---
 
@@ -286,7 +290,7 @@ Current User Goal: {state['user_goal']}
 What we've accomplished (actions executed):
 {memory}
 
-SEARCH COUNT: {search_count} (Maximum allowed: 1)
+SEARCH COUNT: {search_count} (Maximum allowed: 2)
 
 ### YOUR TASK:
 Plan ONLY the NEXT SINGLE STEP.
@@ -295,17 +299,21 @@ Plan ONLY the NEXT SINGLE STEP.
 If user asks "hi", "how are you", "who are you" → 
   route_to='terminal', Steps=[], fill direct_response
 
-RULE 1: If memory EMPTY and user needs action → Plan 'search'
+🎯 RULE 1: **CHECK COMPLETION FIRST**
+Compare user goal vs memory:
+  - "Find X and open" + [search, open_website] = DONE → terminal
+  - "Open X and screenshot" + [open_website] only = NOT DONE → plan screenshot
 
-RULE 2: If memory has search results →
-  - NEVER search again! Extract URL from results
-  - Construct URL (mit.edu, stanford.edu patterns)
-  - Plan 'open_website' with constructed URL
+RULE 2: If memory EMPTY and user needs action → Plan 'search'
 
-RULE 3: If loop_count >= 3 without opening website →
-  - MUST construct URL from available data NOW
+RULE 3: If memory has search results →
+  A. If [EXTRACTED_URL] looks good (official site) → Copy to open_website
+  B. If URL is aggregator/ranking (topuniversities, usnews) AND search_count < 2:
+     → Extract entity name from results
+     → Do follow-up search: "[entity] official site"
+  C. If search_count >= 2 → Use best available URL or explain limitation
 
-RULE 4: If website opened → route_to='terminal'
+RULE 4: If loop_count >= 4 without opening → MUST open something NOW
 
 ### ALLOWED ACTIONS (use EXACT names):
 - search (requires: query)
@@ -369,20 +377,52 @@ print(f"Search count: {search_count}")
 class Executor:
     def what_execute(self, state):
         task = state.get("pending_task")
+        action_type = task.get('action')
         
-        # Execute the action
-        result = self.dispatch_actions([task])
+        # Duplicate URL prevention
+        last_opened = state.get('last_opened_url')
+        if action_type in ['open_website', 'open_app', 'open']:
+            url_candidate = task.get('url') or task.get('website')
+            if url_candidate:
+                normalized = self._normalize_url(url_candidate)
+                if normalized == last_opened:
+                    print(f"ℹ️ Skipping duplicate open for {normalized}")
+                    result = [{"action": action_type, "result": f"Already opened: {normalized}"}]
+                else:
+                    result = self.dispatch_actions([task])
+        else:
+            result = self.dispatch_actions([task])
         
         # Critical: Process handoff delay
-        action_type = task.get('action')
         if action_type in ['open_website', 'open_app']:
             time.sleep(3)  # Ensures browser/app survives thread termination
         
-        # Append to memory
-        return {
-            "executor_memory": state.get("executor_memory", []) + result,
-            "pending_task": None
+        # Streaming completion message
+        completion_messages = {
+            "search": "✅ Search complete\n",
+            "open_website": "✅ Website opened\n",
+            "open_app": "✅ Application launched\n",
+            "take_screenshot": "✅ Screenshot saved\n"
         }
+        
+        updated_fields = {
+            "executor_memory": state.get("executor_memory", []) + result,
+            "pending_task": None,
+            "reception_output": completion_messages.get(action_type, "✅ Action complete\n")
+        }
+        
+        # Track last opened URL
+        if action_type in ['open_website', 'open_app'] and url_candidate:
+            if not result[0].get('result', '').startswith('Already opened'):
+                updated_fields['last_opened_url'] = normalized
+        
+        return updated_fields
+    
+    def _normalize_url(self, url: str) -> str:
+        url = url.strip()
+        if not url.startswith(('http://', 'https://')):
+            return 'https://' + url
+        return url
 ```
 
 **Action Dispatch**:
@@ -547,7 +587,160 @@ class ReceptionResponse(BaseModel):
 
 ### 5. `src/tools/tools.py` - External Tools
 
-### 5. `src/tools/tools.py` - Tool Implementations
+## New Features (v2.1 - January 6, 2026)
+
+### 1. Real-Time Streaming Updates
+
+**Problem**: Users only saw final response after all actions completed.
+
+**Solution**: Progressive status updates via `reception_output` field:
+
+```python
+# TaskPlanner streams action start
+action_messages = {
+    "search": f"🔍 Searching for: {query}...\n",
+    "open_website": "🌐 Opening website...\n",
+    "open_app": f"🚀 Launching {app_name}...\n",
+    "take_screenshot": "📸 Taking screenshot...\n"
+}
+return {"reception_output": status_message, ...}
+
+# Executor streams action completion
+completion_messages = {
+    "search": "✅ Search complete\n",
+    "open_website": "✅ Website opened\n",
+    "open_app": "✅ Application launched\n",
+    "take_screenshot": "✅ Screenshot saved\n"
+}
+return {"reception_output": completion_msg, ...}
+```
+
+**User Experience**:
+```
+You: find MIT website and open it
+🔍 Searching for: MIT website...
+✅ Search complete
+🌐 Opening website...
+✅ Website opened
+I've found and opened MIT's official website.
+```
+
+---
+
+### 2. Intelligent Follow-Up Search (Max 2 Searches)
+
+**Problem**: First search often returns ranking/aggregator sites (topuniversities.com) instead of official sites.
+
+**Solution**: LLM detects aggregator URLs and triggers second search:
+
+```python
+# RULE 1: Check completion FIRST (prevents infinite loops)
+🎯 Compare user goal vs memory - if goal met, route to terminal
+
+# RULE 3B: Aggregator detection
+If [EXTRACTED_URL] contains "ranking", "top", "list", "topuniversities" 
+   AND search_count < 2:
+   → Extract entity name from results
+   → Search again: "[entity name] official site"
+   → Stream: "🔎 Found ranking site - searching for official website..."
+
+# Hard limit enforcement
+⚠️ If search_count >= 2: ABSOLUTELY NO MORE SEARCHES ALLOWED
+```
+
+**Example**:
+```
+Query: "Find best engineering university"
+Search 1: Returns topuniversities.com (ranking page)
+         → LLM detects "topuniversities" in URL
+         → Extracts "Massachusetts Institute of Technology" from results
+Search 2: "Massachusetts Institute of Technology official site"
+         → Returns mit.edu (official site)
+         → Opens mit.edu
+```
+
+**Key Constraints**:
+- Maximum 2 searches (enforced in prompt and search_count tracking)
+- No .edu prioritization (LLM decides based on URL content)
+- After 2 searches, must use best available URL
+
+---
+
+### 3. Duplicate Action Prevention
+
+**Problem**: LLM sometimes planned same `open_website` action twice in a row.
+
+**Solution**: State-based URL tracking with normalization:
+
+```python
+# Executor checks before opening
+def what_execute(self, state):
+    last_opened = state.get('last_opened_url')
+    url_candidate = task.get('url')
+    
+    if url_candidate:
+        normalized = self._normalize_url(url_candidate)  # mit.edu → https://mit.edu
+        
+        if normalized == last_opened:
+            print(f"ℹ️ Skipping duplicate open for {normalized}")
+            return {"result": f"Already opened: {normalized}"}
+        
+        # Execute open and track
+        os.system(f'start "" "{normalized}"')
+        return {"last_opened_url": normalized, ...}
+
+def _normalize_url(self, url: str) -> str:
+    url = url.strip()
+    if not url.startswith(('http://', 'https://')):
+        return 'https://' + url
+    return url
+```
+
+**State Schema Addition**:
+```python
+class State(TypedDict):
+    ...
+    last_opened_url: str  # Tracks last opened URL for duplicate prevention
+```
+
+**Why Normalization Matters**:
+- User says: "open mit.edu"
+- Executor normalizes: "https://mit.edu"
+- Later query: "open https://mit.edu"
+- Normalized forms match → Duplicate detected → Skip
+
+---
+
+### 4. Completion-First Rule Ordering
+
+**Problem**: LLM checked completion AFTER action planning rules, causing infinite loops.
+
+**Solution**: Reordered rules so completion check happens FIRST:
+
+```
+OLD ORDER:
+RULE 0: Conversational check
+RULE 1: If memory empty → search
+RULE 2: If search results → open
+RULE 3: If loop > 3 → force action
+RULE 4: Check completion (TOO LATE!)
+
+NEW ORDER:
+RULE 0: Conversational check
+🎯 RULE 1: CHECK COMPLETION FIRST ← Moved here!
+RULE 2: If memory empty → search
+RULE 3: If search results → handle aggregator/open
+RULE 4: If loop > 4 → force action
+```
+
+**Impact**:
+- Before: LLM kept planning actions even after goal met
+- After: LLM checks "is user goal accomplished?" before any action planning
+- Loop stopped after: [search, search, open_website] with goal "find and open"
+
+---
+
+## Architecture Summary
 
 **Purpose**: Integration with SerpAPI and Python-based URL extraction
 

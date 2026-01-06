@@ -107,7 +107,7 @@ def TaskPlanner(state: State):
     What we've accomplished so far (actions/tools executed):
     {memory if memory else "Nothing yet - starting fresh"}
     
-    SEARCH COUNT: {search_count} (Maximum allowed: 1)
+    SEARCH COUNT: {search_count} (Maximum allowed: 2)
     
     ### YOUR TASK:
     Analyze the memory and plan ONLY the NEXT SINGLE STEP needed to accomplish the user's goal.
@@ -122,12 +122,19 @@ def TaskPlanner(state: State):
     - If YES → route_to='terminal', Steps=[], fill direct_response with your answer as Jarvis
     - If NO → continue to action planning below
     
-    ### CRITICAL: ONE SEARCH ONLY
-    - Count 'search' actions in memory: If you see even ONE search → DO NOT search again!
-    - After the first search, you MUST extract data and construct a URL
-    - If loop_count >= 2 AND you have search results → MUST open a website this loop
-    - NEVER do 2+ searches - it wastes API calls and money
-    - You have ALL the data you need from the first search result
+    ### SEARCH STRATEGY (MAX 2 SEARCHES):
+    ⚠️ **HARD LIMIT ENFORCEMENT**:
+    - Current search count: {search_count}
+    - If search_count >= 2: **ABSOLUTELY NO MORE SEARCHES ALLOWED**
+    - DO NOT plan 'search' action if search_count >= 2
+    - Use existing data or route to terminal with explanation
+    
+    - First search: Use the user's query as-is
+    - **FOLLOW-UP SEARCH ALLOWED** if first result is a ranking/aggregator site:
+      • Check [EXTRACTED_URL] - if it contains: "ranking", "top", "best", "list", "topuniversities", "usnews", etc.
+      • Then do ONE more search with "official site" or institution name added
+      • Example: First search → got topuniversities.com → Second search: "MIT official site"
+    - After 2 searches, you MUST use whatever URL you have or route to terminal
     
     ### DEPENDENCY CHAIN:
     - To open a website → You need a valid URL (starts with http)
@@ -155,32 +162,52 @@ def TaskPlanner(state: State):
        ❌ DO NOT plan any Steps for greetings/identity queries
        ❌ DO use search when you need current/specific information
     
-    RULE 1: If memory is EMPTY AND user needs a SYSTEM ACTION → Plan: 'search' action with user's query
+    🎯 RULE 1 - **CHECK COMPLETION FIRST (HIGHEST PRIORITY)**:
+    **Before planning ANY action, check if user's goal is ALREADY accomplished:**
     
-    RULE 2: If memory has search results (from ANY previous search):
-       ⚠️ CRITICAL: NEVER search again! You already have the data you need.
-       
-       Your job now:
-       A. **FIND THE [EXTRACTED_URL] TAG** in the search results
-          - The search tool automatically extracts the top result's URL
-          - Look for the line: [EXTRACTED_URL]: https://...
-          - This is the ACTUAL website URL from Google's top result
-       
-       B. Copy that exact URL into the 'url' field:
-          - Example: If you see [EXTRACTED_URL]: https://web.mit.edu
-          - Then plan: {{action: "open_website", url: "https://web.mit.edu"}}
-       
-       C. **CRITICAL**: Copy the URL EXACTLY as shown - do NOT modify it!
-       
-       ❌ DO NOT construct URLs like "mit.edu"
-       ❌ DO NOT modify the extracted URL
-       ❌ DO NOT plan another 'search' action!
+    Compare what user asked for vs what's in memory:
+    - "Find X and open website" + memory has [search, open_website] = ✅ DONE → route to terminal
+    - "Open website and screenshot" + memory has [open_website, take_screenshot] = ✅ DONE → route to terminal
+    - "Search for X" + memory has [search] = ✅ DONE → route to terminal
+    - "Open website and screenshot" + memory has [open_website] only = ❌ NOT DONE → plan screenshot
     
-    RULE 3: If loop_count >= 3 AND no 'open_website' in memory yet:
+    **If goal is met:**
+    - Set route_to='terminal'
+    - Set Steps=[]
+    - DO NOT plan any more actions
+    
+    **If goal is NOT met:**
+    - Continue to RULE 2 below
+    
+    RULE 2: If memory is EMPTY AND user needs a SYSTEM ACTION → Plan: 'search' action with user's query
+    
+    RULE 3: If memory has search results (from the FIRST search):
+    RULE 3: If memory has search results (from the FIRST search):
+       **Check the [EXTRACTED_URL]**:
+       
+       A. If URL looks good (official site, not a ranking/list site):
+          → Copy exact URL into open_website action
+          → Example: [EXTRACTED_URL]: https://web.mit.edu → use it!
+       
+       B. If URL is a RANKING/AGGREGATOR SITE (and search_count < 2):
+          → Detect: URL contains "ranking", "top", "best", "list", "topuniversities", "usnews"
+          → Extract the entity name from search results text (e.g., "Massachusetts Institute of Technology")
+          → Do ONE more search: "[entity name] official site"
+          → Stream message: "🔎 Found ranking site - searching for official website...\n"
+       
+       C. If you already did 2 searches (search_count >= 2):
+          → Use best available URL or route to terminal explaining limitation
+          → **CRITICAL**: DO NOT search a third time - it's BLOCKED
+       
+       **CRITICAL**: Copy URLs EXACTLY from [EXTRACTED_URL] - do NOT modify!
+    
+    RULE 4: If loop_count >= 4 AND no 'open_website' in memory yet:
+    RULE 4: If loop_count >= 4 AND no 'open_website' in memory yet:
        → You MUST construct a URL from existing data and open it NOW
        → Do NOT search again, use what you have
     
-    RULE 4: If goal is accomplished (website opened) → Route to 'terminal'
+    ### REPEATED ACTION DETECTED: {has_repeated_action}
+    If True, you are stuck in a loop! Either try a different approach or route to terminal.
     
     ### ALLOWED ACTIONS:
     - search (requires: query) - Searches web and auto-extracts top URL
@@ -210,8 +237,15 @@ def TaskPlanner(state: State):
     If True, you are stuck in a loop! Either try a different approach or route to terminal.
     
     ### COMPLETION CHECK:
-    - If user's goal is accomplished → route_to='terminal', Steps=[]
-    - If stuck in a loop → route_to='terminal', Steps=[], explain what went wrong
+    - **Compare user's goal with completed actions in memory**
+    - Ask yourself: "Did I accomplish what the user asked for?"
+    - Examples:
+      • Goal: "Find MIT and open website" + Actions: [search, open_website] = ✅ DONE
+      • Goal: "Open website and screenshot" + Actions: [open_website] = ❌ Need screenshot
+      • Goal: "Take a screenshot" + Actions: [take_screenshot] = ✅ DONE
+    - If accomplished → route_to='terminal', Steps=[]
+    - If NOT accomplished → plan the next missing action
+    - If stuck/confused → route_to='terminal', Steps=[], explain issue
     
     **REMEMBER**: Return Steps with EXACTLY ONE item, or empty list if complete.
     We will execute that step, analyze the result, then ask you to plan the NEXT step.
@@ -259,10 +293,10 @@ def TaskPlanner(state: State):
     
     # Generate user-friendly status message
     action_messages = {
-        "search": f"🔍 Searching for: {step_dict.get('query', 'information')}...",
-        "open_website": f"🌐 Opening website...",
-        "open_app": f"🚀 Launching {step_dict.get('app_name', 'application')}...",
-        "take_screenshot": "📸 Taking screenshot..."
+        "search": f"🔍 Searching for: {step_dict.get('query', 'information')}...\n",
+        "open_website": f"🌐 Opening website...\n",
+        "open_app": f"🚀 Launching {step_dict.get('app_name', 'application')}...\n",
+        "take_screenshot": "📸 Taking screenshot...\n"
     }
     
     status_message = action_messages.get(next_step.action, f"⚙️ Executing {next_step.action}...")
