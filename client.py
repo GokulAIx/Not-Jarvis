@@ -3,7 +3,8 @@ import json
 import uuid
 
 # Hardcoded session ID for consistent testing
-SESSION_ID = "GOKUL_SREE_CHANDRA"
+# WE CAN USE UUIDS OR ANY STRING IDENTIFIER
+SESSION_ID = "UserX_session_1234"
 
 def chat_with_jarvis(user_input):
     url = "http://localhost:8000/not-jarvis/stream"

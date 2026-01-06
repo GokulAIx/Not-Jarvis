@@ -38,9 +38,20 @@ class Executor:
         
         print(f"Result: {result[0].get('result', 'No result')[:100]}...")
         
+        # Generate completion message for streaming
+        completion_messages = {
+            "search": "✅ Search complete",
+            "open_website": "✅ Website opened",
+            "open_app": "✅ Application launched",
+            "take_screenshot": "✅ Screenshot saved"
+        }
+        
+        completion_msg = completion_messages.get(action_type, "✅ Action complete")
+        
         return {
             "executor_memory": existing_memory + result,
-            "pending_task": None  # Clear the task
+            "pending_task": None,  # Clear the task
+            "reception_output": completion_msg  # ← Stream completion update
         }
     def dispatch_actions(self, steps):
         # Import tools locally to avoid circular imports

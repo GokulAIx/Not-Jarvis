@@ -1,2 +1,37 @@
-Jarvis
+# Virtual Environment
+Jarvis/
+venv/
+env/
+
+# Environment Variables
 .env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+screenshots/
+*.png
+*.jpg
+
+# Unused modules
+src/commands/
+src/memory/
+src/speech/
+src/Agents/speech_outputs.py
+src/Agents/voice_input.py
+src/Agents/mermy.py

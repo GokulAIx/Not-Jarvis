@@ -8,23 +8,21 @@ from src.Agents.agent import workflow
 from psycopg.rows import dict_row
 app = FastAPI(title="Not Jarvis Production API")
 
-# Setup the pool WITHOUT opening it yet
 DB_URI = os.getenv("DATABASE_URL")
 
 
-# Update your pool configuration here
 connection_pool = AsyncConnectionPool(
     conninfo=DB_URI, 
     max_size=10, 
     open=False,
-    timeout=30,  # Connection timeout
-    max_idle=300,  # 5 minutes max idle time
+    timeout=30,
+    max_idle=300,  
     kwargs={
         "autocommit": True, 
         "row_factory": dict_row,
-        "prepare_threshold": None  # <--- ADD THIS LINE TO FIX THE ERROR
+        "prepare_threshold": None  
     },
-    check=AsyncConnectionPool.check_connection  # Health check on acquire
+    check=AsyncConnectionPool.check_connection 
 )
 class ChatRequest(BaseModel):
     user_goal: str
@@ -33,7 +31,7 @@ class ChatRequest(BaseModel):
 @app.on_event("startup")
 async def startup():
     try:
-        # 1. Explicitly open the pool
+        
         await connection_pool.open()
         
         # 2. Use wait() to ensure connection is live before proceeding
@@ -53,10 +51,6 @@ async def shutdown():
     # Clean up the pool when the server stops
     await connection_pool.close()
 
-# main.py
-
-# main.py
-
 @app.post("/not-jarvis/stream")
 async def stream_agent(request: ChatRequest):
     async def event_generator():
@@ -65,7 +59,6 @@ async def stream_agent(request: ChatRequest):
         app_instance = workflow.compile(checkpointer=checkpointer)
         config = {"configurable": {"thread_id": request.thread_id}}
         
-        # Debug: Check if we're loading an existing session
         print(f"\n📨 Incoming request:")
         print(f"   Thread ID: {request.thread_id}")
         print(f"   User Goal: {request.user_goal}")

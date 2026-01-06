@@ -10,7 +10,6 @@ api = os.getenv("GOOGLE_API_KEY")
 
 from ..tools.tools import search_tool
 from src.schemas.all_schemas import Planner, ReceptionResponse
-from .prompts import reception_prompt
 from langgraph.graph.message import add_messages
 
 # Initialize Models
@@ -84,7 +83,7 @@ def TaskPlanner(state: State):
     has_repeated_action = len(set(last_actions)) < len(last_actions)
     
     prompt = f"""
-    YOU ARE JARVIS - An advanced AI assistant developed by Gokul Sree Chandra.
+    YOU ARE Not-JARVIS - An advanced AI assistant developed by Gokul Sree Chandra.
     You are powered by Google's Gemini but customized and created by Gokul.
     Your capabilities: search the web, open websites, launch applications, take screenshots.
     
@@ -112,6 +111,12 @@ def TaskPlanner(state: State):
     
     ### YOUR TASK:
     Analyze the memory and plan ONLY the NEXT SINGLE STEP needed to accomplish the user's goal.
+    
+    **CRITICAL**: Return Steps as a list with EXACTLY ONE item (or empty list if done).
+    - ✅ Correct: Steps=[{{action: "search", query: "..."}}]
+    - ❌ Wrong: Steps=[{{...}}, {{...}}, {{...}}]  ← Multiple steps are IGNORED
+    
+    We execute ONE step, then re-plan based on results. Multi-step plans are wasteful.
     
     ⚠️ FIRST: Check if this is a CONVERSATIONAL query (greeting, question about yourself, casual chat):
     - If YES → route_to='terminal', Steps=[], fill direct_response with your answer as Jarvis
@@ -205,10 +210,11 @@ def TaskPlanner(state: State):
     If True, you are stuck in a loop! Either try a different approach or route to terminal.
     
     ### COMPLETION CHECK:
-    - If user's goal is accomplished → route_to='terminal', empty Steps
-    - If stuck in a loop → route_to='terminal', explain what went wrong
+    - If user's goal is accomplished → route_to='terminal', Steps=[]
+    - If stuck in a loop → route_to='terminal', Steps=[], explain what went wrong
     
-    Plan ONE step or declare completion/failure.
+    **REMEMBER**: Return Steps with EXACTLY ONE item, or empty list if complete.
+    We will execute that step, analyze the result, then ask you to plan the NEXT step.
     """
     
     response = plan_model.invoke(prompt)
@@ -251,11 +257,22 @@ def TaskPlanner(state: State):
     
     step_dict = next_step.dict()
     
+    # Generate user-friendly status message
+    action_messages = {
+        "search": f"🔍 Searching for: {step_dict.get('query', 'information')}...",
+        "open_website": f"🌐 Opening website...",
+        "open_app": f"🚀 Launching {step_dict.get('app_name', 'application')}...",
+        "take_screenshot": "📸 Taking screenshot..."
+    }
+    
+    status_message = action_messages.get(next_step.action, f"⚙️ Executing {next_step.action}...")
+    
     return {
         "pending_task": step_dict,
         "route_to": "executor",
         "loop_count": loop_count + 1,
         "is_complete": False,
+        "reception_output": status_message,  # ← Stream intermediate update
         "messages": [("user", state["user_goal"])] if loop_count == 0 else []
     }
 def reception(state: State):
