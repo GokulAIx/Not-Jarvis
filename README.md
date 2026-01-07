@@ -1,6 +1,6 @@
 # Not-Jarvis: Intelligent OS Agent with Zero Hallucination
 
-An AI-powered desktop automation agent that executes web searches, opens websites, launches applications, and takes screenshots through natural language commands—with **0% URL hallucination rate** achieved through Python+LLM hybrid architecture.
+An AI-powered desktop automation agent that executes web searches, opens websites, launches applications, and takes screenshots through natural language commands, with **0% URL hallucination rate** achieved through Python+LLM hybrid architecture.
 
 ---
 ## Live Demo:
@@ -16,7 +16,7 @@ Most AI agents are demo-grade.
 They hallucinate structured data (URLs, IDs, file paths), execute incorrect actions,
 and collapse the moment they are connected to real systems.
 
-Not-Jarvis is designed from the opposite direction — **production reliability first**.
+Not-Jarvis is designed from the opposite direction: **production reliability first**.
 
 It enforces hard boundaries between reasoning and execution:
 - Python performs all deterministic extraction (no guessing, no generation)
@@ -283,6 +283,7 @@ Agentic systems, FastAPI, LangGraph, reliability-first architecture
 ---
 
 **Built with focus on production-ready patterns**: async/await, connection pooling, structured outputs, error handling, and architectural clarity.
+
 
 
 
