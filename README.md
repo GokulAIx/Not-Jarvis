@@ -5,14 +5,7 @@ An AI-powered desktop automation agent that executes web searches, opens website
 ---
 ## Live Demo:
 
-<p align="center">
-  <img src="https://github.com/user-attachments/assets/29219ae3-6278-4922-9d57-a14735f7de9f"
-       alt="Not-Jarvis Working Demo"
-       width="100%" />
-</p>
-
-
-
+https://github.com/user-attachments/assets/827955d5-14ae-403e-8b3a-a458838e5a5a
 
 
 ## Why Not-Jarvis?
@@ -289,6 +282,7 @@ Agentic systems, FastAPI, LangGraph, reliability-first architecture
 ---
 
 **Built with focus on production-ready patterns**: async/await, connection pooling, structured outputs, error handling, and architectural clarity.
+
 
 
 
