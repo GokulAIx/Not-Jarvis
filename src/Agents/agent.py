@@ -372,8 +372,6 @@ graph.add_conditional_edges(
     }
 )
 
-# THE DYNAMIC LOOP: Executor always returns to TaskPlanner to see 
-# if more steps are needed based on the new data it found.
 graph.add_edge("Executor", "TaskPlanner") 
 
 graph.add_edge("reception", END)

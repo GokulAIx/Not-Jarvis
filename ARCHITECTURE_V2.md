@@ -85,7 +85,7 @@ Identity:      "Jarvis" - AI assistant by Gokul Sree Chandra
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      CLIENT (client.py)                     │
-│  - Hardcoded Thread ID: GOKUL_SREE_CHANDRA                 │
+│  - Hardcoded Thread ID: UserX_session_1234                │
 │  - Maintains session across all requests                    │
 │  - SSE streaming consumption                                │
 └────────────────┬────────────────────────────────────────────┘
@@ -218,7 +218,7 @@ async def stream_agent(request: ChatRequest):
 
 ```python
 # Hardcoded thread ID for consistent sessions
-SESSION_ID = "GOKUL_SREE_CHANDRA"
+SESSION_ID = "UserX_session_1234"
 
 def chat_with_jarvis(user_input):
     url = "http://localhost:8000/not-jarvis/stream"
@@ -875,7 +875,7 @@ async def clear_checkpoints():
 **Example**: "hi who are you"
 
 ```
-1. Client sends: {user_goal: "hi who are you", thread_id: "GOKUL_SREE_CHANDRA"}
+1. Client sends: {user_goal: "hi who are you", thread_id: "UserX_session_1234"}
 2. FastAPI: Loads messages=[] (first time), resets loop_count=0
 3. TaskPlanner:
    - Detects conversational keyword "hi", "who are you"
@@ -1054,7 +1054,7 @@ Problem: "open their website" fails (no context from "find restaurant")
 
 **Our Approach**:
 ```python
-SESSION_ID = "GOKUL_SREE_CHANDRA"  # Same ID = persistent memory
+SESSION_ID = "UserX_session_1234"  # Same ID = persistent memory
 Benefit: Multi-turn conversations work seamlessly
 ```
 
