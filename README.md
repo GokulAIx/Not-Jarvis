@@ -3,8 +3,10 @@
 An AI-powered desktop automation agent that executes web searches, opens websites, launches applications, and takes screenshots through natural language commands—with **0% URL hallucination rate** achieved through Python+LLM hybrid architecture.
 
 ---
+Live Demo:
 
-[![Not-Jarvis Demo](https://img.youtube.com/vi/yEhFI8vic_0/hqdefault.jpg)](https://www.youtube.com/watch?v=yEhFI8vic_0)
+Uploading Not - Jarvis Working Demo.mp4…
+
 
 
 ## Why Not-Jarvis?
@@ -281,6 +283,7 @@ Agentic systems, FastAPI, LangGraph, reliability-first architecture
 ---
 
 **Built with focus on production-ready patterns**: async/await, connection pooling, structured outputs, error handling, and architectural clarity.
+
 
 
 
