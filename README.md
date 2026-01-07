@@ -1,3 +1,5 @@
+
+https://github.com/user-attachments/assets/c13e8e78-dfce-4def-bdd0-9de9b158c9b0
 # Not-Jarvis: Intelligent OS Agent with Zero Hallucination
 
 An AI-powered desktop automation agent that executes web searches, opens websites, launches applications, and takes screenshots through natural language commands—with **0% URL hallucination rate** achieved through Python+LLM hybrid architecture.
@@ -5,7 +7,8 @@ An AI-powered desktop automation agent that executes web searches, opens website
 ---
 ## Live Demo:
 
-https://github.com/user-attachments/assets/827955d5-14ae-403e-8b3a-a458838e5a5a
+
+Uploading Not - Jarvis.mp4…
 
 
 ## Why Not-Jarvis?
@@ -282,6 +285,7 @@ Agentic systems, FastAPI, LangGraph, reliability-first architecture
 ---
 
 **Built with focus on production-ready patterns**: async/await, connection pooling, structured outputs, error handling, and architectural clarity.
+
 
 
 
