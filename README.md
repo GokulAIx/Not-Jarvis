@@ -4,6 +4,24 @@ An AI-powered desktop automation agent that executes web searches, opens website
 
 ---
 
+## Why Not-Jarvis?
+
+Most AI agents are demo-grade.
+
+They hallucinate structured data (URLs, IDs, file paths), execute incorrect actions,
+and collapse the moment they are connected to real systems.
+
+Not-Jarvis is designed from the opposite direction — **production reliability first**.
+
+It enforces hard boundaries between reasoning and execution:
+- Python performs all deterministic extraction (no guessing, no generation)
+- LLMs are restricted to semantic planning only
+- The agent re-plans after every action using real execution results
+
+**Result**: an OS-level automation agent that behaves deterministically,
+streams execution in real time, and remains safe to run outside of toy demos.
+
+
 ## 🎯 Key Features
 
 - **Zero URL Hallucination**: Deterministic Python extraction ensures 100% accurate website URLs
@@ -254,11 +272,13 @@ Apache License 2.0 - See [LICENSE](LICENSE) file for details
 ## 👤 Author
 
 **Gokul Sree Chandra**  
-3rd Year Computer Science Student, GITAM University
+Designing and building AI agents & backend infrastructure  
+Agentic systems, FastAPI, LangGraph, reliability-first architecture
 
 ---
 
 **Built with focus on production-ready patterns**: async/await, connection pooling, structured outputs, error handling, and architectural clarity.
+
 
 
 
