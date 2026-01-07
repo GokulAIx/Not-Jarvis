@@ -35,7 +35,8 @@ Client Request → FastAPI → LangGraph StateGraph → Gemini 2.5 Flash
 4. **Reception**: Formats final response when task complete
 
 
-![Uploading graph2.png…]()
+<img width="275" height="333" alt="graph2" src="https://github.com/user-attachments/assets/b9c945a3-3cd8-430a-aa45-faa2ee281c91" />
+
 
 **Key Design Decision**: Single-step planning instead of multi-step plans eliminates wasted LLM calls when intermediate results differ from expectations.
 
@@ -258,5 +259,6 @@ Apache License 2.0 - See [LICENSE](LICENSE) file for details
 ---
 
 **Built with focus on production-ready patterns**: async/await, connection pooling, structured outputs, error handling, and architectural clarity.
+
 
 
