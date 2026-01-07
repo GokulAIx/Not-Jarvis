@@ -34,6 +34,9 @@ Client Request → FastAPI → LangGraph StateGraph → Gemini 2.5 Flash
 3. **Loop Back**: TaskPlanner re-evaluates with execution results
 4. **Reception**: Formats final response when task complete
 
+
+![Uploading graph2.png…]()
+
 **Key Design Decision**: Single-step planning instead of multi-step plans eliminates wasted LLM calls when intermediate results differ from expectations.
 
 ---
@@ -255,4 +258,5 @@ Apache License 2.0 - See [LICENSE](LICENSE) file for details
 ---
 
 **Built with focus on production-ready patterns**: async/await, connection pooling, structured outputs, error handling, and architectural clarity.
+
 
