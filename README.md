@@ -4,6 +4,8 @@ An AI-powered desktop automation agent that executes web searches, opens website
 
 ---
 
+Live Demo: https://youtu.be/yEhFl8vic_0
+
 ## Why Not-Jarvis?
 
 Most AI agents are demo-grade.
@@ -278,6 +280,7 @@ Agentic systems, FastAPI, LangGraph, reliability-first architecture
 ---
 
 **Built with focus on production-ready patterns**: async/await, connection pooling, structured outputs, error handling, and architectural clarity.
+
 
 
 
