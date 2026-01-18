@@ -7,7 +7,7 @@ class Planner_Steps(BaseModel):
     )
     app_name: Optional[str] = Field(None, description="Required for open_app")
     command: Optional[str] = None
-    url: Optional[str] = Field(None, description="Required for open_website")
+    url_index: Optional[int] = Field(None, description="If provided, refers to an index in the URL map returned by the search tool")
     query: Optional[str] = Field(None, description="Required for search action")
 
 class Planner(BaseModel):

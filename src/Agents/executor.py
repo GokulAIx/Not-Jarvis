@@ -17,6 +17,10 @@ class Executor:
     def what_execute(self, state):
         task = state.get("pending_task")
         
+        # DEBUG: show pending task and current url_map
+        print(f"DEBUG Executor: pending_task={task}")
+        print(f"DEBUG Executor: state.url_map={state.get('url_map')}")
+
         if not task:
             print("⚠️ Executor called with no pending task")
             return {"executor_memory": state.get("executor_memory", [])}
@@ -24,6 +28,23 @@ class Executor:
         print(f"\n--- Executor: Running action ---")
         print(f"Action: {task.get('action')}")
         
+        # Resolve url_index => url if present (use state's url_map)
+        if task and task.get('action') in ['open_website', 'open', 'open_app']:
+            if task.get('url_index') is not None:
+                url_map = state.get('url_map', {}) or {}
+                print(f"DEBUG Executor: attempting to resolve url_index {task.get('url_index')} using url_map={url_map}")
+                idx = task.get('url_index')
+                # keys in url_map may be strings if serialized; try both
+                mapped = url_map.get(idx)
+                if mapped is None:
+                    mapped = url_map.get(str(idx))
+                if mapped:
+                    # inject resolved url so handlers receive `url`
+                    task['url'] = mapped
+                    print(f"DEBUG Executor: resolved url_index {idx} -> {mapped}")
+                else:
+                    print(f"DEBUG Executor: could not resolve url_index {idx}; url_map keys: {list(url_map.keys())}")
+
         # Run the single task
         # Prevent duplicate opens by checking last_opened_url in state
         action_type = task.get('action')
@@ -71,6 +92,38 @@ class Executor:
             "reception_output": completion_msg  # ← Stream completion update
         }
 
+        # If this was a search, try to extract URL map from the textual result
+        try:
+            if action_type == 'search' and result and isinstance(result, list):
+                raw = result[0].get('result', '')
+                # look for [URL_MAP]: block
+                if '[URL_MAP]:' in raw:
+                    print("DEBUG Executor: found [URL_MAP] in search result; parsing...")
+                    # extract lines after the tag
+                    start = raw.index('[URL_MAP]:') + len('[URL_MAP]:')
+                    snippet = raw[start:]
+                    # find all lines like [0]: https://...
+                    url_map = {}
+                    for line in snippet.splitlines():
+                        line = line.strip()
+                        if not line:
+                            continue
+                        # pattern: [i]: url
+                        if line.startswith('[') and ']: ' in line:
+                            try:
+                                i_part, u = line.split(']: ', 1)
+                                i = int(i_part.strip().lstrip('['))
+                                url_map[i] = u.strip()
+                            except Exception:
+                                continue
+                    if url_map:
+                        updated_fields['url_map'] = url_map
+                        print(f"DEBUG Executor: parsed url_map={url_map}")
+                    else:
+                        print("DEBUG Executor: found [URL_MAP] but parsed no entries")
+        except Exception as e:
+            print(f"⚠️ URL map extraction error in executor: {e}")
+
         if action_type in ['open_website', 'open_app', 'open']:
             # If we executed an actual open, capture the URL from task
             url_candidate = task.get('url') or task.get('website') or task.get('destination')
@@ -114,14 +167,27 @@ class Executor:
         return results
 
     def open_website(self, url: str) -> str:
-            if not url: return "No URL provided."
+            if not url:
+                return "No URL provided."
 
-            # Normalize URL and return the normalized form on success
+            # Normalize URL and attempt to open in default browser
             normalized = self._normalize_url(url)
             try:
-                # Use Windows shell to open URL in default browser
-                os.system(f'start "" "{normalized}"')
-                return normalized
+                # Prefer webbrowser.open which returns True/False
+                try:
+                    opened = webbrowser.open(normalized, new=2)
+                    print(f"DEBUG Executor: webbrowser.open returned: {opened} for {normalized}")
+                    if opened:
+                        return normalized
+                except Exception as e:
+                    print(f"DEBUG Executor: webbrowser.open raised: {e}")
+
+                # Fallback to Windows start command
+                rc = os.system(f'start "" "{normalized}"')
+                print(f"DEBUG Executor: os.system start rc={rc} for {normalized}")
+                if rc == 0:
+                    return normalized
+                return f"Attempted to open {normalized} (rc={rc})"
             except Exception as e:
                 return f"Failed to open website: {e}"
 

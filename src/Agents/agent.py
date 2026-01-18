@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph, START, END
-from typing import TypedDict, Annotated
+from typing import TypedDict, Annotated, Optional, Dict
 from langchain_google_genai import ChatGoogleGenerativeAI
 from src.Agents.executor import Executor
 from dotenv import load_dotenv
@@ -34,6 +34,7 @@ class State(TypedDict):
     route_to: str
     reception_output: str  # Streaming updates to user
     messages: Annotated[list, add_messages]  # ONLY user input + final response
+    url_map: Optional[Dict[int, str]]  # Mapping of index -> url produced by search tool
 
 # --- NODES ---
 
@@ -131,14 +132,14 @@ def TaskPlanner(state: State):
     
     - First search: Use the user's query as-is
     - **FOLLOW-UP SEARCH ALLOWED** if first result is a ranking/aggregator site:
-      • Check [EXTRACTED_URL] - if it contains: "ranking", "top", "best", "list", "topuniversities", "usnews", etc.
+    • Check [URL_MAP] - if any mapped URL contains: "ranking", "top", "best", "list", "topuniversities", "usnews", etc.
       • Then do ONE more search with "official site" or institution name added
       • Example: First search → got topuniversities.com → Second search: "MIT official site"
     - After 2 searches, you MUST use whatever URL you have or route to terminal
     
     ### DEPENDENCY CHAIN:
-    - To open a website → You need a valid URL (starts with http)
-    - To get a URL → You need the exact business/restaurant name from search results
+    - To open a website → The LLM should select a `url_index` from the `[URL_MAP]`; the system will resolve it to a valid URL
+    - To get a URL → Perform a search to populate the `[URL_MAP]`
     - To get a name → You need to search first
     
     ### DECISION RULES:
@@ -183,11 +184,11 @@ def TaskPlanner(state: State):
     
     RULE 3: If memory has search results (from the FIRST search):
     RULE 3: If memory has search results (from the FIRST search):
-       **Check the [EXTRACTED_URL]**:
-       
-       A. If URL looks good (official site, not a ranking/list site):
-          → Copy exact URL into open_website action
-          → Example: [EXTRACTED_URL]: https://web.mit.edu → use it!
+         **Check the [URL_MAP]**:
+
+         A. If a mapped URL looks like the official site (not a ranking/list site):
+             → Plan `open_website` by returning its `url_index` (do NOT include the URL itself)
+             → Example: `[URL_MAP]: {{ [0]: https://web.mit.edu, ... }}` → `Steps=[{{action: "open_website", url_index: 0}}]`
        
        B. If URL is a RANKING/AGGREGATOR SITE (and search_count < 2):
           → Detect: URL contains "ranking", "top", "best", "list", "topuniversities", "usnews"
@@ -199,7 +200,7 @@ def TaskPlanner(state: State):
           → Use best available URL or route to terminal explaining limitation
           → **CRITICAL**: DO NOT search a third time - it's BLOCKED
        
-       **CRITICAL**: Copy URLs EXACTLY from [EXTRACTED_URL] - do NOT modify!
+    **CRITICAL**: Do NOT return or modify URLs. Instead, return the index from `[URL_MAP]` when planning `open_website`.
     
     RULE 4: If loop_count >= 4 AND no 'open_website' in memory yet:
     RULE 4: If loop_count >= 4 AND no 'open_website' in memory yet:
@@ -210,26 +211,27 @@ def TaskPlanner(state: State):
     If True, you are stuck in a loop! Either try a different approach or route to terminal.
     
     ### ALLOWED ACTIONS:
-    - search (requires: query) - Searches web and auto-extracts top URL
-    - open_website (requires: url - Copy from [EXTRACTED_URL] tag)
+    - search (requires: query) - Searches web and returns a short summary plus `[URL_MAP]`
+    - open_website (requires: url_index - index into the `[URL_MAP]` provided by the last search)
     - open_app (requires: app_name)
     - take_screenshot
     
     ### URL EXTRACTION (AUTOMATED):
     **The search tool does the work for you!**
     
-    When you run search, the result includes:
+    When you run search, the result includes a human-readable summary plus a small URL map:
     ```
     [search results text...]
-    
-    [EXTRACTED_URL]: https://actual-website.com
+
+    [URL_MAP]: {{
+    [0]: https://example.com
+    [1]: https://example2.com
+    }}
     ```
-    
-    Your job: Copy that URL exactly into open_website action.
-    
-    ❌ DO NOT construct URLs - use [EXTRACTED_URL]
-    ❌ DO NOT modify the extracted URL
-    ❌ DO NOT search for "official website" - first search has the URL
+
+    Your job: When deciding which site to open, return the index (e.g. `url_index: 0`) instead of the URL itself.
+
+    ❌ DO NOT construct or return URLs yourself — return the index only.
     
     ALWAYS prefer opening SOMETHING over endless searching!
     
@@ -290,6 +292,7 @@ def TaskPlanner(state: State):
     print(f"Next action: {next_step.action}")
     
     step_dict = next_step.dict()
+    print(f"Planned step dict: {step_dict}")
     
     # Generate user-friendly status message
     action_messages = {

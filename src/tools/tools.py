@@ -10,28 +10,22 @@ serpy = os.getenv("SERPAPI_API_KEY")
 searching_tool = SerpAPIWrapper(serpapi_api_key=serpy)
 
 def enhanced_search(query: str) -> str:
-    """Search and automatically extract URL from first result"""
-    # Get the raw JSON dict from SerpAPI (not formatted text)
+    """Search and build a URL map for top 4 results, formatted for LLM index selection."""
     results_dict = searching_tool.results(query)
-    
+    url_map = {}
     try:
-        # Check if there are organic results with links
-        if 'organic_results' in results_dict and len(results_dict['organic_results']) > 0:
-            first_result = results_dict['organic_results'][0]
-            url = first_result.get('link', '')
-            
-            if url:  # Only add tag if URL exists
-                # Convert dict to formatted text + add URL tag
-                raw_text = searching_tool.run(query)  # Get formatted text version
-                response = f"{raw_text}\n\n[EXTRACTED_URL]: {url}"
-                return response
-        
-        # If no organic results (e.g., direct answer), return formatted text
-        # This happens for "what is" queries where Google shows answer box
-        return searching_tool.run(query)
-    
-    except (KeyError, IndexError, Exception) as e:
-        # If parsing fails, return formatted text
+        organic = results_dict.get('organic_results', [])
+        # Build map for up to 4 results
+        for idx in range(min(4, len(organic))):
+            url = organic[idx].get('link', '')
+            if url:
+                url_map[idx] = url
+        # Format map for LLM
+        raw_text = searching_tool.run(query)
+        map_str = '\n'.join([f"[{i}]: {u}" for i, u in url_map.items()])
+        response = f"{raw_text}\n\n[URL_MAP]: {{\n{map_str}\n}}"
+        return response
+    except Exception as e:
         print(f"⚠️ URL extraction error: {e}")
         return searching_tool.run(query)
 
