@@ -1,8 +1,31 @@
 # Not-Jarvis: Intelligent OS Agent with Zero Hallucination
 
-An AI-powered desktop automation agent that executes web searches, opens websites, launches applications, and takes screenshots through natural language commands—with **0% URL hallucination rate** achieved through Python+LLM hybrid architecture.
+An AI-powered desktop automation agent that executes web searches, opens websites, launches applications, and takes screenshots through natural language commands, with **0% URL hallucination rate** achieved through Python+LLM hybrid architecture.
 
 ---
+## Live Demo:
+
+
+[Not - Jarvis](https://github.com/user-attachments/assets/c13e8e78-dfce-4def-bdd0-9de9b158c9b0)
+
+
+## Why Not-Jarvis?
+
+Most AI agents are demo-grade.
+
+They hallucinate structured data (URLs, IDs, file paths), execute incorrect actions,
+and collapse the moment they are connected to real systems.
+
+Not-Jarvis is designed from the opposite direction: **production reliability first**.
+
+It enforces hard boundaries between reasoning and execution:
+- Python performs all deterministic extraction (no guessing, no generation)
+- LLMs are restricted to semantic planning only
+- The agent re-plans after every action using real execution results
+
+**Result**: an OS-level automation agent that behaves deterministically,
+streams execution in real time, and remains safe to run outside of toy demos.
+
 
 ## 🎯 Key Features
 
@@ -33,6 +56,10 @@ Client Request → FastAPI → LangGraph StateGraph → Gemini 2.5 Flash
 2. **Executor**: Executes action (search, open_website, screenshot, open_app)
 3. **Loop Back**: TaskPlanner re-evaluates with execution results
 4. **Reception**: Formats final response when task complete
+
+
+<img width="275" height="333" alt="graph2" src="https://github.com/user-attachments/assets/b9c945a3-3cd8-430a-aa45-faa2ee281c91" />
+
 
 **Key Design Decision**: Single-step planning instead of multi-step plans eliminates wasted LLM calls when intermediate results differ from expectations.
 
@@ -250,9 +277,24 @@ Apache License 2.0 - See [LICENSE](LICENSE) file for details
 ## 👤 Author
 
 **Gokul Sree Chandra**  
-3rd Year Computer Science Student, GITAM University
+Designing and building AI agents & backend infrastructure  
+Agentic systems, FastAPI, LangGraph, reliability-first architecture
 
 ---
 
 **Built with focus on production-ready patterns**: async/await, connection pooling, structured outputs, error handling, and architectural clarity.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
