@@ -35,3 +35,4 @@ src/speech/
 src/Agents/speech_outputs.py
 src/Agents/voice_input.py
 src/Agents/mermy.py
+src/main.py

@@ -81,10 +81,13 @@ LLM: "Opening https://mit.com" ❌ (Hallucinated - real site is mit.edu)
 # Python Extracts URLs (Zero Hallucination)
 def enhanced_search(query: str) -> str:
     results = serpapi.search(query)
-    url = results['organic_results'][0]['link']  # ✅ Python extraction
-    return f"{results}\n\n[EXTRACTED_URL]: {url}"
+    # Extract top 4 URLs into indexed map
+    url_map = {i: results['organic_results'][i]['link'] 
+               for i in range(min(4, len(results)))}
+    return f"{results}\n\n[URL_MAP]: {url_map}"
 
-# LLM uses extracted URL (no hallucination possible)
+# LLM selects index (0-3), never sees full URLs
+# Executor resolves: url_index 0 → actual URL → opens browser
 ```
 
 **Results**: 0% URL hallucination across all test queries.
@@ -208,11 +211,12 @@ class State(TypedDict):
 # SerpAPI returns structured JSON
 search_results = searching_tool.results(query)
 
-# Python extracts URL deterministically
-url = search_results['organic_results'][0]['link']
+# Python extracts top 4 URLs deterministically
+url_map = {i: result['link'] for i, result in enumerate(results[:4])}
 
-# LLM receives: "[EXTRACTED_URL]: https://actual-url.com"
-# LLM copies exact URL (no generation = no hallucination)
+# LLM receives: "[URL_MAP]: {0: url1, 1: url2, 2: url3, 3: url4}"
+# LLM returns: url_index: 0 (just a number, never generates URLs)
+# Executor resolves index → actual URL (no LLM generation = no hallucination)
 ```
 
 ---
@@ -258,10 +262,22 @@ url = search_results['organic_results'][0]['link']
 
 ---
 
+## ⚠️ Current Limitations
+
+1. **Windows-Only**: Uses Windows `start` command and webbrowser module
+2. **No Error Recovery**: Failed actions don't retry automatically
+3. **URL_MAP Limited to 4 Results**: Only top 4 search results available
+4. **No Observability**: Missing structured logging, metrics, and tracing (LangSmith, OpenTelemetry)
+5. **Single-User Design**: Hardcoded session ID, no multi-user support
+
+---
+
 ## 🚀 Future Enhancements
 
-- [ ] Add authentication & multi-user support
-- [ ] Implement crash recovery (check `is_complete` flag before starting)
+- [ ] Cross-platform support (macOS, Linux)
+- [ ] Add observability: LangSmith for LLM tracing, Prometheus for metrics
+- [ ] Authentication & multi-user support
+- [ ] Retry logic and error recovery
 - [ ] Add more tools (file operations, email, calendar)
 - [ ] Voice input/output integration
 - [ ] Deploy with Docker + managed PostgreSQL
